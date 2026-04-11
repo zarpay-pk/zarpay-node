@@ -1,0 +1,24 @@
+{
+  "name": "zarpay",
+  "version": "1.0.0",
+  "description": "Official Node.js SDK for the ZarPay payment gateway",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["zarpay", "payments", "jazzcash", "easypaisa", "pakistan", "mobile-wallet"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zarpay/zarpay-node"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
