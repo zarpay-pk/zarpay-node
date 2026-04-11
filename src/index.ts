@@ -18,6 +18,8 @@
  * ```
  */
 
+import { createHmac } from "node:crypto";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -201,24 +203,31 @@ export default class ZarPay {
   async _request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-        "User-Agent": "zarpay-node/1.0.0",
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(this.timeout),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout);
 
-    const data = await response.json();
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+          "User-Agent": "zarpay-node/1.0.0",
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: controller.signal,
+      });
 
-    if (!response.ok && data.error) {
-      throw new ZarPayAPIError(response.status, data as ZarPayError);
+      const data = (await response.json()) as Record<string, unknown>;
+
+      if (!response.ok && data.error) {
+        throw new ZarPayAPIError(response.status, data as unknown as ZarPayError);
+      }
+
+      return data as T;
+    } finally {
+      clearTimeout(timer);
     }
-
-    return data as T;
   }
 
   // -----------------------------------------------------------------------
@@ -241,9 +250,6 @@ export default class ZarPay {
     secret: string,
     toleranceSec = 300
   ): WebhookPayload {
-    // Dynamic import not needed — crypto is a Node built-in
-    const crypto = require("crypto");
-
     const parts: Record<string, string> = {};
     for (const part of signatureHeader.split(",")) {
       const idx = part.indexOf("=");
@@ -262,8 +268,7 @@ export default class ZarPay {
       throw new Error("Webhook timestamp too old — possible replay attack");
     }
 
-    const expected = crypto
-      .createHmac("sha256", secret)
+    const expected = createHmac("sha256", secret)
       .update(`${t}.${rawBody}`)
       .digest("hex");
 
