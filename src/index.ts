@@ -1,5 +1,5 @@
 /**
- * ZarPay Node.js SDK
+ * ZarPay Node.js SDK v1.0.1
  *
  * Official SDK for integrating with the ZarPay payment gateway.
  *
@@ -91,6 +91,68 @@ export interface ChannelsResponse {
   };
 }
 
+export interface CreateRefundParams {
+  /** ZarPay payment ID to refund */
+  zarpay_id: string;
+  /** Refund amount in PKR */
+  amount: number;
+  /** Reason for the refund */
+  reason?: string;
+}
+
+export interface RefundData {
+  refund_id: number;
+  status: string;
+  amount: number;
+  reason: string | null;
+}
+
+export interface RefundResponse {
+  success: boolean;
+  data: RefundData;
+}
+
+export interface BalanceData {
+  total_completed: number;
+  total_fees: number;
+  total_refunds: number;
+  settled: number;
+  unsettled: number;
+  pending: number;
+  withdrawn: number;
+  available: number;
+  currency: string;
+}
+
+export interface BalanceResponse {
+  success: boolean;
+  data: BalanceData;
+}
+
+export interface SettlementData {
+  id: number;
+  period_start: string;
+  period_end: string;
+  gross_amount: number;
+  total_fees: number;
+  total_refunds: number;
+  net_amount: number;
+  transaction_count: number;
+  status: string;
+  settled_at: string | null;
+  created_at: string;
+}
+
+export interface SettlementsResponse {
+  success: boolean;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    settlements: SettlementData[];
+  };
+}
+
 export interface ZarPayError {
   success: false;
   error: string;
@@ -135,6 +197,7 @@ export class ZarPayAPIError extends Error {
 
 const DEFAULT_BASE_URL = "https://zarpay.pk/api/v1";
 const DEFAULT_TIMEOUT = 120_000;
+const SDK_VERSION = "1.0.1";
 
 class PaymentsResource {
   constructor(private client: ZarPay) {}
@@ -161,6 +224,45 @@ class PaymentsResource {
   }
 }
 
+class RefundsResource {
+  constructor(private client: ZarPay) {}
+
+  /** Initiate a refund on a completed payment */
+  async create(params: CreateRefundParams): Promise<RefundResponse> {
+    return this.client._request<RefundResponse>("POST", "/refunds", params);
+  }
+}
+
+class BalanceResource {
+  constructor(private client: ZarPay) {}
+
+  /** Get the project's financial balance summary */
+  async get(): Promise<BalanceResponse> {
+    return this.client._request<BalanceResponse>("GET", "/balance");
+  }
+}
+
+class SettlementsResource {
+  constructor(private client: ZarPay) {}
+
+  /** List settlements for the project */
+  async list(params?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<SettlementsResponse> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set("status", params.status);
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+    return this.client._request<SettlementsResponse>(
+      "GET",
+      `/settlements${qs ? `?${qs}` : ""}`
+    );
+  }
+}
+
 class ChannelsResource {
   constructor(private client: ZarPay) {}
 
@@ -177,6 +279,12 @@ export default class ZarPay {
 
   /** Payment operations */
   public payments: PaymentsResource;
+  /** Refund operations */
+  public refunds: RefundsResource;
+  /** Balance queries */
+  public balance: BalanceResource;
+  /** Settlement queries */
+  public settlements: SettlementsResource;
   /** Channel operations */
   public channels: ChannelsResource;
 
@@ -196,6 +304,9 @@ export default class ZarPay {
     this.timeout = config?.timeout || DEFAULT_TIMEOUT;
 
     this.payments = new PaymentsResource(this);
+    this.refunds = new RefundsResource(this);
+    this.balance = new BalanceResource(this);
+    this.settlements = new SettlementsResource(this);
     this.channels = new ChannelsResource(this);
   }
 
@@ -212,7 +323,7 @@ export default class ZarPay {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
-          "User-Agent": "zarpay-node/1.0.0",
+          "User-Agent": `zarpay-node/${SDK_VERSION}`,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
