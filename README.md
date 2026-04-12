@@ -15,7 +15,6 @@ import ZarPay from 'zarpay';
 
 const zarpay = new ZarPay('sk_sandbox_xxxxxxxxxxxxx');
 
-// Create a payment
 const payment = await zarpay.payments.create({
   merchant_order_id: 'ORD-123',
   amount: 1500,
@@ -23,24 +22,13 @@ const payment = await zarpay.payments.create({
   customer_phone: '03001234567',
 });
 
-console.log(payment.data.status); // 'completed' | 'processing' | 'failed'
+console.log(payment.data.status);
 ```
 
-## Usage
-
-### List Available Channels
+## Payments
 
 ```typescript
-const channels = await zarpay.channels.list();
-
-for (const ch of channels.data.channels) {
-  console.log(`${ch.id}: ${ch.wallet_type}`);
-}
-```
-
-### Create a Payment
-
-```typescript
+// Create a payment
 const payment = await zarpay.payments.create({
   merchant_order_id: 'ORD-456',
   amount: 2500,
@@ -50,43 +38,79 @@ const payment = await zarpay.payments.create({
   idempotency_key: 'unique-key-456',
 });
 
-if (payment.success) {
-  console.log('Payment completed:', payment.data.zarpay_id);
-} else {
-  console.log('Payment failed:', payment.data.failure_reason);
-}
-```
-
-### Get Payment Status
-
-```typescript
-// By ZarPay ID
+// Get by ZarPay ID
 const payment = await zarpay.payments.get('ZP_abc123def456');
 
-// By your order ID
+// Get by your order ID
 const payment = await zarpay.payments.getByOrderId('ORD-456');
 ```
 
-### Verify Webhooks
+## Refunds
+
+```typescript
+const refund = await zarpay.refunds.create({
+  zarpay_id: 'ZP_abc123def456',
+  amount: 500,
+  reason: 'Customer requested refund',
+});
+
+console.log(refund.data.status); // 'pending' — requires admin approval
+```
+
+## Balance
+
+```typescript
+const balance = await zarpay.balance.get();
+
+console.log('Available:', balance.data.available);
+console.log('Settled:', balance.data.settled);
+console.log('Unsettled:', balance.data.unsettled);
+console.log('Pending:', balance.data.pending);
+```
+
+## Settlements
+
+```typescript
+const settlements = await zarpay.settlements.list({
+  status: 'PAID',
+  page: 1,
+  limit: 10,
+});
+
+for (const s of settlements.data.settlements) {
+  console.log(`#${s.id}: PKR ${s.net_amount} (${s.status})`);
+}
+```
+
+## Channels
+
+```typescript
+const channels = await zarpay.channels.list();
+
+for (const ch of channels.data.channels) {
+  console.log(`${ch.id}: ${ch.wallet_type}`);
+}
+```
+
+## Verify Webhooks
 
 ```typescript
 import { ZarPay } from 'zarpay';
 
-// In your webhook handler (e.g. Express)
 app.post('/webhooks/zarpay', (req, res) => {
   try {
     const event = ZarPay.verifyWebhook(
-      req.body,                              // raw body string
-      req.headers['x-zarpay-signature'],     // signature header
-      'whsec_your_webhook_secret'            // from project settings
+      req.body,
+      req.headers['x-zarpay-signature'],
+      'whsec_your_webhook_secret'
     );
 
     switch (event.event) {
       case 'payment.completed':
-        // Fulfill the order
         break;
-      case 'payment.failed':
-        // Notify customer
+      case 'refund.completed':
+        break;
+      case 'settlement.paid':
         break;
     }
 
@@ -97,29 +121,42 @@ app.post('/webhooks/zarpay', (req, res) => {
 });
 ```
 
-### Error Handling
+## Error Handling
 
 ```typescript
 import ZarPay, { ZarPayAPIError } from 'zarpay';
 
 try {
-  const payment = await zarpay.payments.create({ ... });
+  await zarpay.payments.create({ ... });
 } catch (err) {
   if (err instanceof ZarPayAPIError) {
-    console.log(err.status);    // HTTP status code (400, 401, 409, etc.)
-    console.log(err.message);   // Human-readable error
+    console.log(err.status);  // 400, 401, 409, etc.
+    console.log(err.message); // Human-readable error
   }
 }
 ```
 
-### Configuration
+## Configuration
 
 ```typescript
 const zarpay = new ZarPay('sk_sandbox_xxx', {
-  baseUrl: 'http://localhost:3000/api/v1',  // for local development
-  timeout: 60000,                            // request timeout in ms
+  baseUrl: 'http://localhost:3550/api/v1',
+  timeout: 60000,
 });
 ```
+
+## API Reference
+
+| Resource | Method | Endpoint |
+|----------|--------|----------|
+| `payments.create()` | POST | /payments |
+| `payments.get()` | GET | /payments/:id |
+| `payments.getByOrderId()` | GET | /payments/by-order/:id |
+| `refunds.create()` | POST | /refunds |
+| `balance.get()` | GET | /balance |
+| `settlements.list()` | GET | /settlements |
+| `channels.list()` | GET | /channels |
+| `ZarPay.verifyWebhook()` | — | Verify webhook signature |
 
 ## License
 
