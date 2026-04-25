@@ -23,6 +23,7 @@ const payment = await zarpay.payments.create({
 });
 
 console.log(payment.data.status);
+console.log(payment.data.payment_method_label);
 ```
 
 ## Payments
@@ -88,7 +89,8 @@ for (const s of settlements.data.settlements) {
 const channels = await zarpay.channels.list();
 
 for (const ch of channels.data.channels) {
-  console.log(`${ch.id}: ${ch.wallet_type}`);
+  console.log(`${ch.id}: ${ch.label} (${ch.wallet_type})`);
+  console.log(ch.logo_url);
 }
 ```
 
@@ -107,6 +109,7 @@ app.post('/webhooks/zarpay', (req, res) => {
 
     switch (event.event) {
       case 'payment.completed':
+        console.log(event.data.payment_method_label);
         break;
       case 'refund.completed':
         break;

@@ -1,5 +1,5 @@
 /**
- * ZarPay Node.js SDK v1.0.1
+ * ZarPay Node.js SDK v1.1.0
  *
  * Official SDK for integrating with the ZarPay payment gateway.
  *
@@ -18,7 +18,7 @@
  * ```
  */
 
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,18 +54,19 @@ export interface PaymentData {
   status: string;
   amount: number;
   currency: string;
+  channel_id?: number | null;
   payment_method: string | null;
   payment_method_label: string | null;
+  payment_method_logo_url: string | null;
   customer_phone: string | null;
   metadata: unknown;
   failure_reason: string | null;
-  fees: {
+  fees?: {
     fee_percent: number | null;
     fee_amount: number | null;
     net_amount: number | null;
   };
   vendor_reference?: string | null;
-  channel_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,12 +81,18 @@ export interface PaymentResponse {
 export interface Channel {
   id: number;
   wallet_type: string;
+  label: string;
+  logo_url: string | null;
 }
 
 export interface ChannelsResponse {
   success: boolean;
   data: {
-    payment_methods: { type: string }[];
+    payment_methods: {
+      type: string;
+      label: string;
+      logo_url: string | null;
+    }[];
     channels: Channel[];
     mode: string;
   };
@@ -163,15 +170,18 @@ export interface WebhookPayload {
   timestamp: string;
   data: {
     delivery_id: number;
-    zarpay_id: string;
-    merchant_order_id: string;
+    zarpay_id: string | null;
+    merchant_order_id: string | null;
     status: string;
     amount: number;
     currency: string;
     channel_id: number | null;
+    payment_method: string | null;
+    payment_method_label: string | null;
+    payment_method_logo_url: string | null;
     customer_phone: string | null;
     metadata: unknown;
-    failure_reason: string | null;
+    failure_reason?: string | null;
   };
 }
 
@@ -197,7 +207,7 @@ export class ZarPayAPIError extends Error {
 
 const DEFAULT_BASE_URL = "https://zarpay.pk/api/v1";
 const DEFAULT_TIMEOUT = 120_000;
-const SDK_VERSION = "1.0.1";
+const SDK_VERSION = "1.1.0";
 
 class PaymentsResource {
   constructor(private client: ZarPay) {}
@@ -383,7 +393,13 @@ export default class ZarPay {
       .update(`${t}.${rawBody}`)
       .digest("hex");
 
-    if (expected !== v1) {
+    const expectedBuffer = Buffer.from(expected, "hex");
+    const receivedBuffer = Buffer.from(v1, "hex");
+
+    if (
+      expectedBuffer.length !== receivedBuffer.length ||
+      !timingSafeEqual(expectedBuffer, receivedBuffer)
+    ) {
       throw new Error("Invalid webhook signature");
     }
 
